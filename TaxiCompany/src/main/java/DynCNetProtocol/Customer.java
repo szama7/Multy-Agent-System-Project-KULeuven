@@ -47,7 +47,9 @@ public class Customer extends Parcel implements CommUser, TickListener {
 	private Long deadline = null;
 	private boolean hasTransporter = false;
 	private boolean startComm = true;
-
+	
+	TaxiVehicle provisionTaxi = null;
+	
 	Customer(RandomGenerator rnd, ParcelDTO dto) {
 		super(dto);
 		this.rnd = rnd;
@@ -91,6 +93,7 @@ public class Customer extends Parcel implements CommUser, TickListener {
 						if (first) { // The first element in the Map has the
 										// smallest distance from this parcel
 							msg = new ACLStructure(Informative.PROVISIONAL_ACCEPT);
+							provisionTaxi = to;
 							first = false;
 						} else {
 							msg = new ACLStructure(Informative.REJECT_PROPOSAL);
@@ -115,9 +118,12 @@ public class Customer extends Parcel implements CommUser, TickListener {
 		}
 
 		for (Message message : messages) {
-
-			ACLStructure msg = (ACLStructure) message.getContents();
+			ACLStructure answer;
 			CommUser sender = message.getSender();
+			ACLStructure msg = (ACLStructure) message.getContents();
+			
+				
+			
 			switch (msg.getInformative()) {
 			case REFUSE:
 				// Do nothing
@@ -140,10 +146,23 @@ public class Customer extends Parcel implements CommUser, TickListener {
 				hasTransporter = true;
 				break;
 				
-			case BOUND: 
-				System.out.println("Customer got a BOUND message");
-				ACLStructure answer = new ACLStructure(Informative.ACK);
+			case BOUND:
+				answer = new ACLStructure(Informative.ACK);
 				device.get().send(answer, sender);
+				break;
+				
+			case FA:
+				if(provisionTaxi!=null){
+					double provTaxiDist = calcullateDistance(rm.getShortestPathTo(this, provisionTaxi));
+					double newTaxiDist = calcullateDistance(rm.getShortestPathTo(this, (TaxiVehicle) sender));
+					if (newTaxiDist < provTaxiDist) {
+						System.out.println("EOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO*");
+						answer = new ACLStructure(Informative.REJECT_PROPOSAL);
+						device.get().send(answer, provisionTaxi);
+						answer = new ACLStructure(Informative.PROVISIONAL_ACCEPT);
+						device.get().send(answer, sender);
+					} 
+				}
 				break;
 
 			default:
@@ -175,5 +194,17 @@ public class Customer extends Parcel implements CommUser, TickListener {
 	private void nextRange() {
 		if (range < MAX_RANGE)
 			range += RANGE_STEP;
+	}
+	
+	private double calcullateDistance(List<Point> shortestPath) {
+		Point from = shortestPath.get(0);
+		double distance = 0;
+
+		for (int i = 1; i < shortestPath.size(); i++) {
+			Point to = shortestPath.get(i);
+			distance += Point.distance(from, to);
+			from = to;
+		}
+		return distance;
 	}
 }
