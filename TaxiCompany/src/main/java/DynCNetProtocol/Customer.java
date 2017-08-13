@@ -31,8 +31,8 @@ public class Customer extends Parcel implements CommUser, TickListener {
 	// hogy a szimulációban lássuk - és külön kéne számolni hogy mekkora
 	// százalékban adják fel a próbálkozást.
 
-	static final double MIN_RANGE = 100;
-	static final double MAX_RANGE = 20000;
+	static final double MIN_RANGE = 20000;
+	static final double MAX_RANGE = MIN_RANGE*1.5;
 	static final double RANGE_STEP = .4;
 
 	static final int ANSWER_DELAY = 2; // number of ticks.
@@ -47,14 +47,19 @@ public class Customer extends Parcel implements CommUser, TickListener {
 	private Long deadline = null;
 	private boolean hasTransporter = false;
 	private boolean startComm = true;
+	private int waitingForAnswerTickCounter = 0;
 	
 	TaxiVehicle provisionTaxi = null;
+	private int messageCounter = 0;
+	private int switchProvisionalTaxiCounter = 0;
 	
+
+
 	Customer(RandomGenerator rnd, ParcelDTO dto) {
 		super(dto);
 		this.rnd = rnd;
 		device = Optional.absent();
-		range = MAX_RANGE; // MIN_RANGE;
+		range = MIN_RANGE;
 		reliability = REABILITY;
 	}
 
@@ -70,6 +75,11 @@ public class Customer extends Parcel implements CommUser, TickListener {
 	@Override
 	public void tick(TimeLapse timeLapse) {
 		if (device.isPresent()) {
+			waitingForAnswerTickCounter++;
+			
+			if(waitingForAnswerTickCounter == 30 && !hasTransporter){
+				
+			}
 
 			RoadModel rm = getRoadModel();
 
@@ -133,6 +143,7 @@ public class Customer extends Parcel implements CommUser, TickListener {
 				if (timeLapse.getStartTime() <= deadline) {
 					Double bid = msg.getBid().get();
 					bids.put(bid, (TaxiVehicle) sender);
+					messageCounter++;
 				}
 				break;
 
@@ -157,10 +168,11 @@ public class Customer extends Parcel implements CommUser, TickListener {
 					double newTaxiDist = calcullateDistance(rm.getShortestPathTo(this, (TaxiVehicle) sender));
 					if (newTaxiDist < provTaxiDist) {
 						System.out.println("EOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO*");
-						answer = new ACLStructure(Informative.REJECT_PROPOSAL);
+						answer = new ACLStructure(Informative.REJECT);
 						device.get().send(answer, provisionTaxi);
 						answer = new ACLStructure(Informative.PROVISIONAL_ACCEPT);
 						device.get().send(answer, sender);
+						switchProvisionalTaxiCounter++;
 					} 
 				}
 				break;
@@ -206,5 +218,17 @@ public class Customer extends Parcel implements CommUser, TickListener {
 			from = to;
 		}
 		return distance;
+	}
+	
+	public int getMessageCounter() {
+		return messageCounter;
+	}
+
+	public int getSwitchProvisionalTaxiCounter() {
+		return switchProvisionalTaxiCounter;
+	}
+
+	public static double getMaxRange() {
+		return MAX_RANGE;
 	}
 }

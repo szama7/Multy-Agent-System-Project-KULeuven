@@ -78,7 +78,7 @@ public final class TaxiExample {
   private static final Map<String, Graph<MultiAttributeData>> GRAPH_CACHE =
     newHashMap();
 
-  private static final long TEST_STOP_TIME = 20 * 60 * 1000;
+  private static final long TEST_STOP_TIME = 300; //20 * 60 * 1000;
   private static final int TEST_SPEED_UP = 64;
 
   private TaxiExample() {}

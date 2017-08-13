@@ -24,7 +24,7 @@ import DynCNetProtocol.ACLStructure.Informative;
 public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 
 	private static final double SPEED = 5000;
-	private static final double RANGE = 20000;
+	private static final double RANGE = Customer.getMaxRange();
 	private static final double RELIABILITY = 1;
 
 	private Optional<Customer> currPassanger;
@@ -33,7 +33,12 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 	private Optional<Point> destination;
 	private boolean inCargo = false;
 	private boolean isReserved = false;
-	
+	private int messageCounter = 0;
+	private int switchProvisionalCustomerCounter = 0;
+	private int deliveredPassangersCounter = 0;
+	private int passangerInCargoTickCounter = 0;
+	private int passangerNotInCargoTickCounter = 0; // ASK RINDE if its enough to substract the passangerInCargoTickCounter from the TEST_STOP_TIME or not... - should be enough.
+
 	Customer provisionCustomer = null;
 
 	protected TaxiVehicle(Point startPosition, int capacity) {
@@ -102,8 +107,6 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 			ACLStructure msg = (ACLStructure) message.getContents();
 			CommUser sender = message.getSender();
 			ACLStructure answer;
-			
-			
 
 			switch (msg.getInformative()) {
 			case CFP:
@@ -115,6 +118,7 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 														// akkor true-e amikor
 														// már felvan véve a
 														// kocsiba!
+						messageCounter++;
 						if (!isReserved) {
 							double bid = calcullateDistance(rm.getShortestPathTo(this, (Customer) sender));
 							answer = new ACLStructure(Informative.PROPOSE, bid);
@@ -134,7 +138,7 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 								urh.get().send(answer, sender);
 							}
 
-						}else{
+						} else {
 							answer = new ACLStructure(Informative.REFUSE);
 							urh.get().send(answer, sender);
 						}
@@ -147,10 +151,6 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 
 			case REJECT_PROPOSAL:
 				// keep going
-				if(provisionCustomer !=null){
-					provisionCustomer = null;
-					isReserved = false;
-				}
 				break;
 
 			case PROVISIONAL_ACCEPT:
@@ -164,18 +164,19 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 					} else if (provisionCustomer != null) { // if isReserved
 						double provCustDist = calcullateDistance(rm.getShortestPathTo(this, provisionCustomer));
 						double newCustDist = calcullateDistance(rm.getShortestPathTo(this, (Customer) sender));
-						if(newCustDist<provCustDist){
+						if (newCustDist < provCustDist) {
 							answer = new ACLStructure(Informative.FAILURE);
 							urh.get().send(answer, provisionCustomer);
 							destination = sender.getPosition();
 							answer = new ACLStructure(Informative.AGREE);
 							provisionCustomer = (Customer) sender;
 							urh.get().send(answer, sender);
-						}else{
+							switchProvisionalCustomerCounter++;
+						} else {
 							answer = new ACLStructure(Informative.FAILURE);
 							urh.get().send(answer, sender);
 						}
-					} else{
+					} else {
 						answer = new ACLStructure(Informative.FAILURE);
 						urh.get().send(answer, sender);
 					}
@@ -184,8 +185,15 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 			case ACK:
 				if (!currPassanger.isPresent()) {
 					currPassanger = Optional.fromNullable(provisionCustomer);
-					//pm.pickup(this, currPassanger.get(), time);
-					provisionCustomer=null;
+					// pm.pickup(this, currPassanger.get(), time);
+					provisionCustomer = null;
+				}
+				break;
+
+			case REJECT:
+				if (provisionCustomer != null) {
+					provisionCustomer = null;
+					isReserved = false;
 				}
 				break;
 
@@ -197,8 +205,8 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 
 		// HANDLE PARCEL
 		ACLStructure answer;
-		
-		if(provisionCustomer!=null){
+
+		if (provisionCustomer != null) {
 			rm.moveTo(this, provisionCustomer, time);
 			if (rm.equalPosition(this, provisionCustomer)) {
 				// pickup customer
@@ -207,8 +215,12 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 			}
 		}
 		
+		if(inCargo){
+			passangerInCargoTickCounter++;
+		}
+
 		if (currPassanger.isPresent()) {
-			
+
 			final boolean inCargo = pm.containerContains(this, currPassanger.get());
 			// sanity check: if it is not in our cargo AND it is also not on the
 			// RoadModel, we cannot go to curr anymore.
@@ -221,6 +233,7 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 				if (rm.getPosition(this).equals(currPassanger.get().getDeliveryLocation())) {
 					// deliver when we arrive
 					pm.deliver(this, currPassanger.get(), time);
+					deliveredPassangersCounter++;
 					isReserved = false; // eztmég ellenõrizni!
 					ACLStructure msg = new ACLStructure(Informative.FA);
 					urh.get().broadcast(msg);
@@ -235,6 +248,10 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 			}
 		}
 
+	}
+
+	public int getPassangerInCargoTickCounter() {
+		return passangerInCargoTickCounter;
 	}
 
 	private void nextDestination(RoadModel rm) {
@@ -262,4 +279,15 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 		return inCargo;
 	}
 
+	public int getMessageCounter() {
+		return messageCounter;
+	}
+
+	public int getSwitchProvisionalCustomerCounter() {
+		return switchProvisionalCustomerCounter;
+	}
+	
+	public int getDeliveredPassangersCounter() {
+		return deliveredPassangersCounter;
+	}
 }
