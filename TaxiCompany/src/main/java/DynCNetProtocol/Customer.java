@@ -42,7 +42,6 @@ public class Customer extends Parcel implements CommUser, TickListener {
 
 	private double range;
 	private final double reliability;
-	private final RandomGenerator rnd;
 	private TreeMap<Double, TaxiVehicle> bids = new TreeMap<>();
 	private Long deadline = null;
 	private boolean hasTransporter = false;
@@ -55,9 +54,8 @@ public class Customer extends Parcel implements CommUser, TickListener {
 	
 
 
-	Customer(RandomGenerator rnd, ParcelDTO dto) {
+	Customer(ParcelDTO dto) {
 		super(dto);
-		this.rnd = rnd;
 		device = Optional.absent();
 		range = MIN_RANGE;
 		reliability = REABILITY;
@@ -166,8 +164,8 @@ public class Customer extends Parcel implements CommUser, TickListener {
 				if(provisionTaxi!=null){
 					double provTaxiDist = calcullateDistance(rm.getShortestPathTo(this, provisionTaxi));
 					double newTaxiDist = calcullateDistance(rm.getShortestPathTo(this, (TaxiVehicle) sender));
+					System.out.println("CALC DIST: " + provTaxiDist);
 					if (newTaxiDist < provTaxiDist) {
-						System.out.println("EOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO*");
 						answer = new ACLStructure(Informative.REJECT);
 						device.get().send(answer, provisionTaxi);
 						answer = new ACLStructure(Informative.PROVISIONAL_ACCEPT);
@@ -200,12 +198,6 @@ public class Customer extends Parcel implements CommUser, TickListener {
 		}
 		
 		device = Optional.of(commDeviceBuilder.setReliability(reliability).build());
-	}
-
-	// NEM IS FOG KELLENI
-	private void nextRange() {
-		if (range < MAX_RANGE)
-			range += RANGE_STEP;
 	}
 	
 	private double calcullateDistance(List<Point> shortestPath) {
