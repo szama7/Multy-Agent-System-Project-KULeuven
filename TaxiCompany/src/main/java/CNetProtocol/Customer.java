@@ -42,15 +42,18 @@ public class Customer extends Parcel implements CommUser, TickListener {
 
 	private double range;
 	private final double reliability;
-	private final RandomGenerator rnd;
 	private TreeMap<Double, TaxiVehicle> bids = new TreeMap<>();
 	private Long deadline = null;
 	private boolean hasTransporter = false;
 	private boolean startComm = true;
+	private int messageCounter = 0;
+	
+	public int getMessageCounter() {
+		return messageCounter;
+	}
 
-	Customer(RandomGenerator rnd, ParcelDTO dto) {
+	Customer(ParcelDTO dto) {
 		super(dto);
-		this.rnd = rnd;
 		device = Optional.absent();
 		range = MAX_RANGE; // MIN_RANGE;
 		reliability = REABILITY;
@@ -131,11 +134,10 @@ public class Customer extends Parcel implements CommUser, TickListener {
 				break;
 
 			case PROPOSE:
-				System.out.println("B'");
 				if (timeLapse.getStartTime() <= deadline) {
 					Double bid = msg.getBid().get();
 					bids.put(bid, (TaxiVehicle) sender);
-					System.out.println("'C");
+					messageCounter++;
 				}
 				break;
 

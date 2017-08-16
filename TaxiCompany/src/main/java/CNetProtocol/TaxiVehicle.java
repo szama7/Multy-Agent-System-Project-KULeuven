@@ -1,5 +1,6 @@
 package CNetProtocol;
 
+import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.commons.math3.random.RandomGenerator;
@@ -20,18 +21,31 @@ import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 
 import CNetProtocol.ACLStructure.Informative;
+import CNetProtocol.Customer;
+import CNetProtocol.TaxiBase;
 
 public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 
 	private static final double SPEED = 5000;
 	private static final double RANGE = 20000;
 	private static final double RELIABILITY = 1;
-
+	private static final int BATTERY = 6000;
 	private Optional<Customer> currPassanger;
 	private Optional<CommDevice> urh;
 	private Optional<RandomGenerator> rnd;
 	private Optional<Point> destination;
 	private boolean inCargo = false;
+
+	private int messageCounter = 0;
+	private int deliveredPassangersCounter = 0;
+	private int passangerInCargoTickCounter = 0;
+	private int totalTickNumCounter = 0;
+	private int batteryChargingCounter = 0;
+
+	private int actualyBattery = BATTERY;
+	Customer provisionCustomer = null;
+	private static LinkedList<TaxiBase> taxiBaseList = null;
+	private boolean hasToChargeBattery = false;
 
 	protected TaxiVehicle(Point startPosition, int capacity) {
 		super(VehicleDTO.builder().capacity(capacity).startPosition(startPosition).speed(SPEED).build());
@@ -61,7 +75,6 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 			commDeviceBuilder.setMaxRange(RANGE);
 		}
 		urh = Optional.of(commDeviceBuilder.setReliability(RELIABILITY).build());
-		System.out.println("Taxi communication range is: " + RANGE + " in real life: " + urh.get().getMaxRange());
 	}
 
 	@Override
@@ -73,14 +86,9 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 			return;
 		}
 
-		// if they dont have any passanger, than move randomly
-		// ha megy akkor ezt próbáljuk meg törölni!
 		if (!destination.isPresent()) {
 			nextDestination(rm);
 		}
-		// biztos, hogy itt mind a két if kell?? mi a különbség? a destination
-		// új pontot ad ha nincs épp destination, a másik is ezt csinálja
-		// a fenti ifnek nem kéne hogy értelme legyen!
 
 		if (!currPassanger.isPresent()) { // if there is no task, move randomly
 			rm.moveTo(this, destination.get(), time);
@@ -91,11 +99,8 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 
 		List<Message> messages = ImmutableList.of();
 		if (urh.get().getUnreadCount() > 0) {
-			System.out.println("EOOOOOOOOOOOOOO");
 			messages = urh.get().getUnreadMessages();
 		}
-		
-		System.out.println("Message list size: " + messages.size());
 
 		for (Message message : messages) {
 
@@ -105,13 +110,12 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 
 			switch (msg.getInformative()) {
 			case CFP:
-				System.out.println("I received a CFP message!");
 				if (time.getStartTime() < msg.getDeadline()) {
-					// toAnswer.add(sender); ?????
 					if (!currPassanger.isPresent()) {
+						messageCounter++;
 						double bid = calcullateDistance(rm.getShortestPathTo(this, sender));
 						answer = new ACLStructure(Informative.PROPOSE, bid);
-						
+
 					} else {
 						answer = new ACLStructure(Informative.REFUSE);
 					}
@@ -142,44 +146,40 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 				break;
 			}
 		}
-		
-		//HANDLE PARCEL
+		totalTickNumCounter++;
+
+		// HANDLE PARCEL
 		if (currPassanger.isPresent()) {
 			final boolean inCargo = pm.containerContains(this, currPassanger.get());
-			// sanity check: if it is not in our cargo AND it is also not on the
-			// RoadModel, we cannot go to curr anymore.
 			if (!inCargo && !rm.containsObject(currPassanger.get())) {
 				currPassanger = Optional.absent();
 			} else if (inCargo) {
-				// if it is in cargo, go to its destination
 				rm.moveTo(this, currPassanger.get().getDeliveryLocation(), time);
+				passangerInCargoTickCounter++;
 				if (rm.getPosition(this).equals(currPassanger.get().getDeliveryLocation())) {
-					// deliver when we arrive
 					pm.deliver(this, currPassanger.get(), time);
+					deliveredPassangersCounter++;
 				}
 			} else {
-				// it is still available, go there as fast as possible
 				rm.moveTo(this, currPassanger.get(), time);
 				if (rm.equalPosition(this, currPassanger.get())) {
-					// pickup customer
 					pm.pickup(this, currPassanger.get(), time);
 				}
 			}
 		}
-		
-	}
 
+	}
 
 	private void nextDestination(RoadModel rm) {
 		destination = Optional.of(rm.getRandomPosition(rnd.get()));
 	}
-	
-	//not sure if i need it 
-	private double calcullateDistance(List<Point> shortestPath){
+
+	// not sure if i need it
+	private double calcullateDistance(List<Point> shortestPath) {
 		Point from = shortestPath.get(0);
 		double distance = 0;
-		
-		for(int i = 1; i < shortestPath.size(); i++){
+
+		for (int i = 1; i < shortestPath.size(); i++) {
 			Point to = shortestPath.get(i);
 			distance += Point.distance(from, to);
 			from = to;
@@ -194,5 +194,25 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 	public boolean isInCargo() {
 		return inCargo;
 	}
-	
+
+	public int getMessageCounter() {
+		return messageCounter;
+	}
+
+	public int getDeliveredPassangersCounter() {
+		return deliveredPassangersCounter;
+	}
+
+	public int getPassangerInCargoTickCounter() {
+		return passangerInCargoTickCounter;
+	}
+
+	public int getTotalTickNumCounter() {
+		return totalTickNumCounter;
+	}
+
+	public int getBatteryChargingCounter() {
+		return batteryChargingCounter;
+	}
+
 }
