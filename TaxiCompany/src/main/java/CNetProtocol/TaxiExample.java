@@ -66,7 +66,7 @@ import CNetProtocol.TaxiVehicle;
  */
 public final class TaxiExample {
 
-	private static final int NUM_DEPOTS = 1;
+	private static final int NUM_DEPOTS = 6;
 	private static final int NUM_TAXIS = 20;
 	private static final int NUM_CUSTOMERS = 30;
 
@@ -82,12 +82,13 @@ public final class TaxiExample {
 	private static final String MAP_FILE = "/data/maps/leuven-simple.dot";
 	private static final Map<String, Graph<MultiAttributeData>> GRAPH_CACHE = newHashMap();
 
-	private static final long TEST_STOP_TIME = 90 * 60 * 1000;
+	private static final long TEST_STOP_TIME = 45 * 60 * 1000;
 	private static final int TEST_SPEED_UP = 64;
 
 	private static LinkedList<TaxiVehicle> taxiList = null;
 	private static LinkedList<Customer> customerList = null;
 	private static LinkedList<TaxiBase> taxiBaseList = null;
+	
 
 	private TaxiExample() {
 	}
@@ -183,7 +184,6 @@ public final class TaxiExample {
 			
 			public void printTaxiData() {
 				int messageCounter = 0;
-				int switchProvisionalCustomerCounter = 0;
 				int deliveredPassangersCounter = 0;
 				int passangerInCargoTickCounter = 0;
 				int totalTickNumCounter = 0;
@@ -218,6 +218,10 @@ public final class TaxiExample {
 		simulator.start();
 
 		return simulator;
+	}
+
+	public static LinkedList<TaxiBase> getTaxiBaseList() {
+		return taxiBaseList;
 	}
 
 	static View.Builder createGui(boolean testing, @Nullable Display display, @Nullable Monitor m,

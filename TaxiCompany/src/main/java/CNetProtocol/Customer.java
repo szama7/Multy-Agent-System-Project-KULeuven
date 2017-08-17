@@ -85,15 +85,11 @@ public class Customer extends Parcel implements CommUser, TickListener {
 			handleIncomingMessages(rm, timeLapse);
 
 			if (!hasTransporter) {
-				System.out.println("A");
 				if (timeLapse.getStartTime() == deadline) {
 					// select the best proposal
-					System.out.println("B");
 					boolean first = true;
 					for (Entry<Double, TaxiVehicle> entry : bids.entrySet()) {
-						System.out.println("C");
 						TaxiVehicle to = entry.getValue();
-						System.out.println("entry.getValue: " + entry.getValue().toString());
 						ACLStructure msg;
 						if (first) { // The first element in the Map has the
 										// smallest distance from this parcel
@@ -103,7 +99,6 @@ public class Customer extends Parcel implements CommUser, TickListener {
 							msg = new ACLStructure(Informative.REJECT_PROPOSAL);
 						}
 						device.get().send(msg, to);
-						System.out.println("Customer respond for the BID proposal message : " + msg.getInformative());
 					}
 
 				} else if (timeLapse.getStartTime() > deadline) {
@@ -127,7 +122,6 @@ public class Customer extends Parcel implements CommUser, TickListener {
 			ACLStructure msg = (ACLStructure) message.getContents();
 			CommUser sender = message.getSender();
 			
-			System.out.println("The message what the customer get is a: " + msg.getInformative());
 			switch (msg.getInformative()) {
 			case REFUSE:
 				// Do nothing
@@ -144,7 +138,6 @@ public class Customer extends Parcel implements CommUser, TickListener {
 			case FAILURE:
 				startComm = true;
 				hasTransporter = false;
-				// TODO range = MIN_RANGE;
 				break;
 
 			case AGREE:
@@ -172,14 +165,6 @@ public class Customer extends Parcel implements CommUser, TickListener {
 		if (range >= 0) {
 			commDeviceBuilder.setMaxRange(range);
 		}
-		
 		device = Optional.of(commDeviceBuilder.setReliability(reliability).build());
-		System.out.println("customer communication range is: " + range + " in real life: " + device.get().getMaxRange());
-	}
-
-	// NEM IS FOG KELLENI
-	private void nextRange() {
-		if (range < MAX_RANGE)
-			range += RANGE_STEP;
 	}
 }

@@ -43,10 +43,11 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 	private int batteryChargingCounter = 0;
 
 	private int actualyBattery = BATTERY;
-	Customer provisionCustomer = null;
+	Customer actualCustomer = null;
 	private static LinkedList<TaxiBase> taxiBaseList = null;
 	private boolean hasToChargeBattery = false;
-
+	private boolean isPassangerInCargo = false;
+	
 	protected TaxiVehicle(Point startPosition, int capacity) {
 		super(VehicleDTO.builder().capacity(capacity).startPosition(startPosition).speed(SPEED).build());
 		currPassanger = Optional.absent();
@@ -111,7 +112,7 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 			switch (msg.getInformative()) {
 			case CFP:
 				if (time.getStartTime() < msg.getDeadline()) {
-					if (!currPassanger.isPresent()) {
+					if (!currPassanger.isPresent() && !hasToChargeBattery) {
 						messageCounter++;
 						double bid = calcullateDistance(rm.getShortestPathTo(this, sender));
 						answer = new ACLStructure(Informative.PROPOSE, bid);
@@ -121,7 +122,6 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 					}
 
 					urh.get().send(answer, sender);
-					System.out.println("Taxi respond a message : " + answer.getInformative());
 				}
 				break;
 
@@ -130,10 +130,11 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 				break;
 
 			case ACCEPT_PROPOSAL:
-				if (!currPassanger.isPresent()) {
+				if (!currPassanger.isPresent() && !hasToChargeBattery) {
 					destination = sender.getPosition();
 					currPassanger = Optional.fromNullable(sender);
 					answer = new ACLStructure(Informative.AGREE);
+					actualCustomer = sender;
 				} else {
 					answer = new ACLStructure(Informative.FAILURE);
 				}
@@ -147,6 +148,17 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 			}
 		}
 		totalTickNumCounter++;
+		actualyBattery--;
+		System.out.println("Actual battery: " + actualyBattery);
+		ACLStructure answer;
+		if (actualyBattery < (5000) && !isPassangerInCargo) {
+			if(rm.containsObject(actualCustomer)){
+				answer = new ACLStructure(Informative.FAILURE);
+				urh.get().send(answer, actualCustomer);
+				actualCustomer = null;
+			}
+			goToClosesTaxiBase(rm, time);
+		}
 
 		// HANDLE PARCEL
 		if (currPassanger.isPresent()) {
@@ -159,10 +171,13 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 				if (rm.getPosition(this).equals(currPassanger.get().getDeliveryLocation())) {
 					pm.deliver(this, currPassanger.get(), time);
 					deliveredPassangersCounter++;
+					isPassangerInCargo = false;
+					actualCustomer = null;
 				}
 			} else {
 				rm.moveTo(this, currPassanger.get(), time);
 				if (rm.equalPosition(this, currPassanger.get())) {
+					isPassangerInCargo = true;
 					pm.pickup(this, currPassanger.get(), time);
 				}
 			}
@@ -170,11 +185,34 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 
 	}
 
+	public void goToClosesTaxiBase(RoadModel rm, TimeLapse time) {
+		hasToChargeBattery = true;
+		System.out.println("GO TO TAXIBASE");
+		taxiBaseList = TaxiExample.getTaxiBaseList();
+		double max = Double.MAX_VALUE;
+		double dist = Double.MAX_VALUE;
+		TaxiBase closestTaxiBase = null;
+		for (TaxiBase taxiBase : taxiBaseList) {
+			dist = calcullateDistance(rm.getShortestPathTo(this, taxiBase));
+			if (dist < max) {
+				max = dist;
+				closestTaxiBase = taxiBase;
+			}
+		}
+		if (closestTaxiBase != null) {
+			rm.moveTo(this, closestTaxiBase.getPosition(), time);
+			if (rm.getPosition(this).equals(closestTaxiBase.getPosition())) {
+				actualyBattery = BATTERY;
+				hasToChargeBattery = false;
+				batteryChargingCounter++;
+			}
+		}
+	}
+
 	private void nextDestination(RoadModel rm) {
 		destination = Optional.of(rm.getRandomPosition(rnd.get()));
 	}
 
-	// not sure if i need it
 	private double calcullateDistance(List<Point> shortestPath) {
 		Point from = shortestPath.get(0);
 		double distance = 0;
