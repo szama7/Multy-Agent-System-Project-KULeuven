@@ -1,0 +1,17 @@
+CNet setup:
+test stop time: 1000000
+	 num of agents: 20
+	 num of customers: 30
+	 num of depots: 8
+
+	
+	TAXI
+	
+Total messages: 2715
+Total delivered passangers: 10
+Total time what the passangers spend in cargo: 10104
+Total tick numbers: 17387
+Total battery charging times: 0
+Total earned money: 310€
+CUSTOMER
+Total messages: 1340

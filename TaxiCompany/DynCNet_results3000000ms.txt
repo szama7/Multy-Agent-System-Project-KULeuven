@@ -1,0 +1,19 @@
+DynCNet setup:
+test stop time: 3000000
+	 num of agents: 20
+	 num of customers: 30
+	 num of depots: 8
+
+	
+	TAXI
+	
+Total messages: 7095
+Total delivered passangers: 49
+Total time what the passangers spend in cargo: 30153
+Total tick numbers: 51659
+Total provisional customer switch in case of taxi's: 13
+Total battery charging times: 19
+Total earned money: 1705€
+CUSTOMER
+Total messages: 1352
+Total provisional taxi switch in case of customer's: 46

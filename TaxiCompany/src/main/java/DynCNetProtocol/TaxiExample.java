@@ -19,6 +19,7 @@ import static com.google.common.collect.Maps.newHashMap;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.LinkedList;
 import java.util.Map;
 
@@ -31,8 +32,6 @@ import org.eclipse.swt.widgets.Monitor;
 import com.github.rinde.rinsim.core.Simulator;
 import com.github.rinde.rinsim.core.model.comm.CommModel;
 import com.github.rinde.rinsim.core.model.pdp.DefaultPDPModel;
-import com.github.rinde.rinsim.core.model.pdp.Depot;
-import com.github.rinde.rinsim.core.model.pdp.PDPModel;
 import com.github.rinde.rinsim.core.model.pdp.Parcel;
 import com.github.rinde.rinsim.core.model.road.RoadModel;
 import com.github.rinde.rinsim.core.model.road.RoadModelBuilders;
@@ -41,7 +40,6 @@ import com.github.rinde.rinsim.core.model.time.TimeLapse;
 import com.github.rinde.rinsim.event.Listener;
 import com.github.rinde.rinsim.geom.Graph;
 import com.github.rinde.rinsim.geom.MultiAttributeData;
-import com.github.rinde.rinsim.geom.Point;
 import com.github.rinde.rinsim.geom.io.DotGraphIO;
 import com.github.rinde.rinsim.geom.io.Filters;
 import com.github.rinde.rinsim.ui.View;
@@ -60,7 +58,6 @@ import DynCNetProtocol.TaxiRenderer.Language;
  * @author Rinde van Lon
  */
 public final class TaxiExample {
-
 	private static final int NUM_DEPOTS = 8;
 	private static final int NUM_TAXIS = 20;
 	private static final int NUM_CUSTOMERS = 30;
@@ -72,16 +69,14 @@ public final class TaxiExample {
 
 	private static final int SPEED_UP = 4;
 	private static final int MAX_CAPACITY = 3;
-	private static final double NEW_CUSTOMER_PROB = .01;
+	private static final double NEW_CUSTOMER_PROB = .02;
 
 	private static final String MAP_FILE = "/data/maps/leuven-simple.dot";
 	private static final Map<String, Graph<MultiAttributeData>> GRAPH_CACHE = newHashMap();
 
-	private static final long TEST_STOP_TIME = 300 * 60 * 1000; // 60.000 ms ==
-																// 1
-																// sec
+	private static final long TEST_STOP_TIME = 10000000;
 	private static final int TEST_SPEED_UP = 64;
-	
+
 	private static LinkedList<TaxiVehicle> taxiList = null;
 	private static LinkedList<Customer> customerList = null;
 	private static LinkedList<TaxiBase> taxiBaseList = null;
@@ -137,8 +132,7 @@ public final class TaxiExample {
 		taxiList = new LinkedList<TaxiVehicle>();
 		customerList = new LinkedList<Customer>();
 		taxiBaseList = new LinkedList<TaxiBase>();
-		
-		// use map of leuven
+
 		final Simulator simulator = Simulator.builder().addModel(RoadModelBuilders.staticGraph(loadGraph(graphFile)))
 				.addModel(DefaultPDPModel.builder()).addModel(CommModel.builder()).addModel(view).build();
 		final RandomGenerator rng = simulator.getRandomGenerator();
@@ -156,9 +150,10 @@ public final class TaxiExample {
 			taxiList.add(taxiInstance);
 		}
 		for (int i = 0; i < NUM_CUSTOMERS; i++) {
-			Customer customerInstance = new Customer(Parcel
-					.builder(roadModel.getRandomPosition(rng), roadModel.getRandomPosition(rng))
-					.serviceDuration(SERVICE_DURATION).neededCapacity(1 + rng.nextInt(MAX_CAPACITY)).buildDTO());
+			Customer customerInstance = new Customer(
+					Parcel.builder(roadModel.getRandomPosition(rng), roadModel.getRandomPosition(rng))
+							.serviceDuration(50000 + rng.nextInt((int) SERVICE_DURATION))
+							.neededCapacity(1 + rng.nextInt(MAX_CAPACITY)).buildDTO());
 			simulator.register(customerInstance);
 			customerList.add(customerInstance);
 		}
@@ -170,11 +165,12 @@ public final class TaxiExample {
 					simulator.stop();
 					printTaxiData();
 					printCustomerData();
+					writeDataToFile();
 				} else if (rng.nextDouble() < NEW_CUSTOMER_PROB) {
 					simulator.register(new Customer(
 							Parcel.builder(roadModel.getRandomPosition(rng), roadModel.getRandomPosition(rng))
-									.serviceDuration(SERVICE_DURATION).neededCapacity(1 + rng.nextInt(MAX_CAPACITY))
-									.buildDTO()));
+									.serviceDuration(50000 + rng.nextInt((int) SERVICE_DURATION))
+									.neededCapacity(1 + rng.nextInt(MAX_CAPACITY)).buildDTO()));
 				}
 			}
 
@@ -185,6 +181,7 @@ public final class TaxiExample {
 				int passangerInCargoTickCounter = 0;
 				int totalTickNumCounter = 0;
 				int batteryChargingCounter = 0;
+				int totalMoneyCounter = 0;
 				for (TaxiVehicle taxiVehicle : taxiList) {
 					messageCounter += taxiVehicle.getMessageCounter();
 					switchProvisionalCustomerCounter += taxiVehicle.getSwitchProvisionalCustomerCounter();
@@ -192,13 +189,66 @@ public final class TaxiExample {
 					passangerInCargoTickCounter += taxiVehicle.getPassangerInCargoTickCounter();
 					totalTickNumCounter += taxiVehicle.getTotalTickNumCounter();
 					batteryChargingCounter += taxiVehicle.getBatteryChargingCounter();
+					totalMoneyCounter += taxiVehicle.getTotalMoneyCounter();
 				}
 				System.out.println("In case of DynCNet, these are the statistics: \n\t\n\tTAXI\n\t" + "Total messages: "
 						+ messageCounter + "\n\t" + "Total delivered passangers: " + deliveredPassangersCounter + "\n\t"
 						+ "Total time what the passangers spend in cargo: " + passangerInCargoTickCounter + "\n\t"
 						+ "Total tick numbers: " + totalTickNumCounter + "\n\t"
-						+ "Total provisional customer switch in case of taxi's: " + switchProvisionalCustomerCounter + "\n\t"
-						+ "Total battery charging times: " + batteryChargingCounter);
+						+ "Total provisional customer switch in case of taxi's: " + switchProvisionalCustomerCounter
+						+ "\n\t" + "Total battery charging times: " + batteryChargingCounter + "\n\t"
+						+ "Total earned money: " + totalMoneyCounter + "€");
+			}
+
+			public void writeDataToFile() {
+				int messageCounter = 0;
+				int switchProvisionalCustomerCounter = 0;
+				int deliveredPassangersCounter = 0;
+				int passangerInCargoTickCounter = 0;
+				int totalTickNumCounter = 0;
+				int batteryChargingCounter = 0;
+				int totalMoneyCounter = 0;
+
+				int messageCounterCustomer = 0;
+				int switchProvisionalTaxiCounter = 0;
+
+				for (TaxiVehicle taxiVehicle : taxiList) {
+					messageCounter += taxiVehicle.getMessageCounter();
+					switchProvisionalCustomerCounter += taxiVehicle.getSwitchProvisionalCustomerCounter();
+					deliveredPassangersCounter += taxiVehicle.getDeliveredPassangersCounter();
+					passangerInCargoTickCounter += taxiVehicle.getPassangerInCargoTickCounter();
+					totalTickNumCounter += taxiVehicle.getTotalTickNumCounter();
+					batteryChargingCounter += taxiVehicle.getBatteryChargingCounter();
+					totalMoneyCounter += taxiVehicle.getTotalMoneyCounter();
+				}
+				for (Customer customer : customerList) {
+					messageCounterCustomer += customer.getMessageCounter();
+					switchProvisionalTaxiCounter += customer.getSwitchProvisionalTaxiCounter();
+				}
+				int totalMessages = messageCounter+messageCounterCustomer;
+				try {
+					PrintWriter writer = new PrintWriter("DynCNet_results" + TEST_STOP_TIME + "ms.txt", "UTF-8");
+					writer.println("DynCNet setup:");
+					writer.println("test stop time: " + TEST_STOP_TIME + "\n\t num of agents: " + NUM_TAXIS
+							+ "\n\t num of customers: " + NUM_CUSTOMERS + "\n\t num of depots: " + NUM_DEPOTS);
+					writer.println("\n\t\n\tTAXI\n\t");
+					writer.println("Total messages: " + totalMessages);
+					writer.println("Total delivered passangers: " + deliveredPassangersCounter);
+					writer.println("Total time what the passangers spend in cargo: " + passangerInCargoTickCounter);
+					writer.println("Total tick numbers: " + totalTickNumCounter);
+					writer.println(
+							"Total provisional customer switch in case of taxi's: " + switchProvisionalCustomerCounter);
+					writer.println("Total battery charging times: " + batteryChargingCounter);
+					writer.println("Total earned money: " + totalMoneyCounter + "€");
+
+					writer.println("CUSTOMER");
+					writer.println("Total messages: " + messageCounterCustomer);
+					writer.println(
+							"Total provisional taxi switch in case of customer's: " + switchProvisionalTaxiCounter);
+					writer.close();
+				} catch (IOException e) {
+					// do something
+				}
 			}
 
 			public void printCustomerData() {
@@ -249,7 +299,6 @@ public final class TaxiExample {
 		return view;
 	}
 
-	// load the graph file
 	static Graph<MultiAttributeData> loadGraph(String name) {
 		try {
 			if (GRAPH_CACHE.containsKey(name)) {

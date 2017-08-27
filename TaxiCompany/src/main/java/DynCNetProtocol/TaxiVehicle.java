@@ -28,6 +28,8 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 	private static final double RANGE = Customer.getMaxRange();
 	private static final double RELIABILITY = 1;
 	private static final int BATTERY = 6000;
+	private final int TAXI_KM_PRICE = 2; // in euro
+	private final int TAXI_START_PRICE = 4; // in euro
 
 	private Optional<Customer> currPassanger;
 	private Optional<CommDevice> urh;
@@ -42,11 +44,14 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 	private int totalTickNumCounter = 0;
 	private int batteryChargingCounter = 0;
 	private boolean waitingForACK = false;
-
+	private double price = 0;
+	private double totalMoneyCounter = 0;
+	
 	private int actualyBattery = BATTERY;
 	Customer provisionCustomer = null;
 	private static LinkedList<TaxiBase> taxiBaseList = null;
 	private boolean hasToChargeBattery = false;
+	double deliveryPrice = 0;
 
 	protected TaxiVehicle(Point startPosition, int capacity) {
 		super(VehicleDTO.builder().capacity(capacity).startPosition(startPosition).speed(SPEED).build());
@@ -87,19 +92,11 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 			return;
 		}
 
-		// if they dont have any passanger, than move randomly
-		// ha megy akkor ezt próbáljuk meg törölni!
 		if (!destination.isPresent()) {
 			nextDestination(rm);
 		}
-		// biztos, hogy itt mind a két if kell?? mi a különbség? a destination
-		// új pontot ad ha nincs épp destination, a másik is ezt csinálja
-		// a fenti ifnek nem kéne hogy értelme legyen!
 
-		if (!currPassanger.isPresent() && !hasToChargeBattery) { // if there is
-																	// no task,
-																	// move
-																	// randomly
+		if (!currPassanger.isPresent() && !hasToChargeBattery) {
 			rm.moveTo(this, destination.get(), time);
 			if (rm.getPosition(this).equals(destination.get())) {
 				nextDestination(rm);
@@ -153,11 +150,11 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 				break;
 
 			case REJECT_PROPOSAL:
-				// keep going
 				break;
 
 			case PROVISIONAL_ACCEPT:
 				if (!currPassanger.isPresent() && !hasToChargeBattery) {
+					messageCounter++;
 					if (!isReserved) {
 						destination = sender.getPosition();
 						answer = new ACLStructure(Informative.AGREE);
@@ -187,6 +184,7 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 				break;
 			case ACK:
 				if (!currPassanger.isPresent() && !hasToChargeBattery) {
+					messageCounter++;
 					currPassanger = Optional.fromNullable(provisionCustomer);
 					provisionCustomer = null;
 					waitingForACK = false;
@@ -194,6 +192,7 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 				break;
 
 			case REJECT:
+				messageCounter++;
 				if (provisionCustomer != null) {
 					provisionCustomer = null;
 					isReserved = false;
@@ -206,7 +205,6 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 			}
 		}
 
-		// HANDLE PARCEL
 		ACLStructure answer;
 
 		if (provisionCustomer != null && !hasToChargeBattery) {
@@ -228,10 +226,6 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 		totalTickNumCounter++;
 		actualyBattery--;
 
-		System.out.println("Actual battery: " + actualyBattery + " CurrPassanger: " + currPassanger.isPresent()
-				+ " provisionCustomer: " + provisionCustomer + " isReserved: " + isReserved + " waitingForACK: "
-				+ waitingForACK);
-
 		if (actualyBattery < (4500) && !currPassanger.isPresent() && !waitingForACK) {
 			if (provisionCustomer != null) {
 				answer = new ACLStructure(Informative.FAILURE);
@@ -245,17 +239,15 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 		if (currPassanger.isPresent()) {
 
 			final boolean inCargo = pm.containerContains(this, currPassanger.get());
-			// sanity check: if it is not in our cargo AND it is also not on the
-			// RoadModel, we cannot go to curr anymore.
 			if (!inCargo && !rm.containsObject(currPassanger.get())) {
 				currPassanger = Optional.absent();
 			} else if (inCargo) {
 				rm.moveTo(this, currPassanger.get().getDeliveryLocation(), time);
 				passangerInCargoTickCounter++;
 				if (rm.getPosition(this).equals(currPassanger.get().getDeliveryLocation())) {
-					// deliver when we arrive
 					pm.deliver(this, currPassanger.get(), time);
 					deliveredPassangersCounter++;
+					totalMoneyCounter += deliveryPrice;
 					isReserved = false;
 					ACLStructure msg = new ACLStructure(Informative.FA);
 					urh.get().broadcast(msg);
@@ -264,15 +256,27 @@ public class TaxiVehicle extends Vehicle implements CommUser, RandomUser {
 				rm.moveTo(this, currPassanger.get(), time);
 				if (rm.equalPosition(this, currPassanger.get())) {
 					pm.pickup(this, currPassanger.get(), time);
+					deliveryPrice = calculatePrice(rm);
 				}
 			}
 		}
 
 	}
+	
+	public double calculatePrice(RoadModel rm){
+		double distance = calcullateDistance(rm.getShortestPathTo(currPassanger.get().getPickupLocation(), currPassanger.get().getDeliveryLocation()));
+		price = (distance/10000)*TAXI_KM_PRICE + TAXI_START_PRICE;
+		double capacity = currPassanger.get().getNeededCapacity();
+		return (price*capacity);
+		
+	}
+
+	public double getTotalMoneyCounter() {
+		return totalMoneyCounter;
+	}
 
 	public void goToClosesTaxiBase(RoadModel rm, TimeLapse time) {
 		hasToChargeBattery = true;
-		System.out.println("GO TO TAXIBASE");
 		taxiBaseList = TaxiExample.getTaxiBaseList();
 		double max = Double.MAX_VALUE;
 		double dist = Double.MAX_VALUE;

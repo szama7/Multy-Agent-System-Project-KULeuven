@@ -6,7 +6,7 @@ import com.google.common.base.Optional;
 public class ACLStructure implements MessageContents {
 
 	public static enum Informative {
-		CFP, REFUSE, PROPOSE, REJECT_PROPOSAL, ACCEPT_PROPOSAL, FAILURE, INFORM_DONE, INFORM_RESULT, AGREE
+		CFP, REFUSE, PROPOSE, REJECT_PROPOSAL, ACCEPT_PROPOSAL, FAILURE, AGREE
 	}
 
 	private final Informative informative;

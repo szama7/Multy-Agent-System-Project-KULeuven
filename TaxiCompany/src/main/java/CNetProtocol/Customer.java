@@ -23,19 +23,15 @@ import com.google.common.collect.ImmutableList;
 import CNetProtocol.ACLStructure.Informative;
 
 public class Customer extends Parcel implements CommUser, TickListener {
+	static final double MIN_RANGE = 20000;
+	static final double MAX_RANGE = MIN_RANGE*1.5;
+	public static double getMaxRange() {
+		return MAX_RANGE;
+	}
 
-	// Utasoknál a min/max range lehet ha telefonál a taxinak - így broadcast
-	// bármelyik hallhatja majd
-	// vagy csak integet - így jóval szûkebben csak a környezõ autósok látják. -
-	// ez alapján a színük is változhatna
-	// hogy a szimulációban lássuk - és külön kéne számolni hogy mekkora
-	// százalékban adják fel a próbálkozást.
-
-	static final double MIN_RANGE = 100;
-	static final double MAX_RANGE = 20000;
 	static final double RANGE_STEP = .4;
 
-	static final int ANSWER_DELAY = 2; // number of ticks.
+	static final int ANSWER_DELAY = 2; 
 	static final double REABILITY = 1;
 
 	Optional<CommDevice> device;
@@ -47,7 +43,7 @@ public class Customer extends Parcel implements CommUser, TickListener {
 	private boolean hasTransporter = false;
 	private boolean startComm = true;
 	private int messageCounter = 0;
-	
+
 	public int getMessageCounter() {
 		return messageCounter;
 	}
@@ -55,7 +51,7 @@ public class Customer extends Parcel implements CommUser, TickListener {
 	Customer(ParcelDTO dto) {
 		super(dto);
 		device = Optional.absent();
-		range = MAX_RANGE; // MIN_RANGE;
+		range = MAX_RANGE;
 		reliability = REABILITY;
 	}
 
@@ -64,21 +60,16 @@ public class Customer extends Parcel implements CommUser, TickListener {
 
 	@Override
 	public void afterTick(TimeLapse arg0) {
-		// TODO Auto-generated method stub
-
 	}
 
 	@Override
 	public void tick(TimeLapse timeLapse) {
 		if (device.isPresent()) {
-
 			RoadModel rm = getRoadModel();
-
 			if (startComm && !hasTransporter) {
 				deadline = timeLapse.getStartTime() + timeLapse.getTickLength() * ANSWER_DELAY;
 				ACLStructure msg = new ACLStructure(Informative.CFP, deadline);
 				device.get().broadcast(msg);
-				
 				startComm = false;
 			}
 
@@ -91,8 +82,7 @@ public class Customer extends Parcel implements CommUser, TickListener {
 					for (Entry<Double, TaxiVehicle> entry : bids.entrySet()) {
 						TaxiVehicle to = entry.getValue();
 						ACLStructure msg;
-						if (first) { // The first element in the Map has the
-										// smallest distance from this parcel
+						if (first) {
 							msg = new ACLStructure(Informative.ACCEPT_PROPOSAL);
 							first = false;
 						} else {
@@ -102,8 +92,6 @@ public class Customer extends Parcel implements CommUser, TickListener {
 					}
 
 				} else if (timeLapse.getStartTime() > deadline) {
-					// Start over with higher range
-					// TODO nextRange();
 					startComm = true;
 				}
 			}
@@ -116,15 +104,11 @@ public class Customer extends Parcel implements CommUser, TickListener {
 		if (device.get().getUnreadCount() > 0) {
 			messages = device.get().getUnreadMessages();
 		}
-
 		for (Message message : messages) {
-
 			ACLStructure msg = (ACLStructure) message.getContents();
 			CommUser sender = message.getSender();
-			
 			switch (msg.getInformative()) {
 			case REFUSE:
-				// Do nothing
 				break;
 
 			case PROPOSE:
@@ -133,6 +117,7 @@ public class Customer extends Parcel implements CommUser, TickListener {
 					bids.put(bid, (TaxiVehicle) sender);
 					messageCounter++;
 				}
+				
 				break;
 
 			case FAILURE:
@@ -141,11 +126,11 @@ public class Customer extends Parcel implements CommUser, TickListener {
 				break;
 
 			case AGREE:
+				messageCounter++;
 				hasTransporter = true;
 				break;
 
 			default:
-				// No answer
 				break;
 			}
 		}
